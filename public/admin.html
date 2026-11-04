@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Điều Khiển Game</title>
+    <style>
+        body { font-family: "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; background: #eef2f3; margin: 0; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .panel { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h1 { grid-column: 1 / -1; color: #2c3e50; margin-bottom: 0; }
+        button { padding: 12px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 10px; width: 100%; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        button.danger { background: #dc3545; }
+        button.secondary { background: #6c757d; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 15px; }
+        th, td { border-bottom: 1px solid #ddd; padding: 12px 8px; text-align: left; }
+        th { background-color: #f8f9fa; color: #495057; }
+        .active-row { color: #155724; font-weight: bold; }
+        .eliminated-row { color: #dc3545; opacity: 0.6; text-decoration: line-through; }
+        .stat-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bảng Điều Khiển Quản Trò</h1>
+        <div class="panel">
+            <h2>Bảng Điều Khiển</h2>
+            <div class="stat-box">
+                <p style="margin:0 0 5px 0;">Trạng thái: <strong id="gameStatus" style="color:#007bff; text-transform: uppercase;">Lobby</strong></p>
+                <h3 id="currentQuestion" style="margin: 10px 0;">Đang chờ bắt đầu...</h3>
+                <p style="margin:0;">Giới hạn sinh tồn vòng này: <strong id="quota" style="color:#dc3545; font-size:18px;">-</strong> người</p>
+            </div>
+            <button onclick="socket.emit('nextQuestion')">▶ Phát Câu Hỏi Mới</button>
+            <button class="danger" onclick="socket.emit('processResults')">⏹ Chốt Kết Quả (Loại trừ)</button>
+            <br><br><hr><br>
+            <button class="secondary" onclick="socket.emit('resetGame')">🔄 Reset Lại Game Từ Đầu</button>
+        </div>
+        <div class="panel">
+            <h2>Danh sách người chơi (Tổng: <span id="playerCount">0</span>)</h2>
+            <table>
+                <thead>
+                    <tr><th>Tên Học Sinh</th><th>Trạng thái</th><th>Đáp án</th><th>Thời gian</th></tr>
+                </thead>
+                <tbody id="playerTable"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        socket.on('gameState', (state) => {
+            document.getElementById('gameStatus').innerText = state.status;
+            if (state.status === 'playing' || state.status === 'calculating') {
+                document.getElementById('currentQuestion').innerText = `Câu ${state.currentQuestionIndex + 1}: ${state.questions[state.currentQuestionIndex].text}`;
+                document.getElementById('quota').innerText = state.survivalQuotas[state.currentQuestionIndex];
+            } else if (state.status === 'ended') {
+                document.getElementById('currentQuestion').innerText = 'ĐÃ HOÀN THÀNH TẤT CẢ CÂU HỎI';
+                document.getElementById('quota').innerText = '-';
+            } else {
+                document.getElementById('currentQuestion').innerText = 'Đang chờ bắt đầu...';
+                document.getElementById('quota').innerText = '-';
+            }
+        });
+        socket.on('updatePlayers', (players) => {
+            const tbody = document.getElementById('playerTable');
+            tbody.innerHTML = '';
+            let count = 0;
+            const playerArray = Object.values(players);
+            playerArray.sort((a, b) => (a.active === b.active) ? 0 : a.active ? -1 : 1);
+            playerArray.forEach(p => {
+                count++;
+                const tr = document.createElement('tr');
+                tr.className = p.active ? 'active-row' : 'eliminated-row';
+                const timeStr = p.currentAnswer !== null ? (p.timeTaken / 1000).toFixed(3) + ' s' : '-';
+                tr.innerHTML = `<td>${p.name}</td><td>${p.active ? 'Đang thi đấu' : 'Khán giả'}</td><td>${p.currentAnswer !== null ? 'Đã chọn' : 'Chưa'}</td><td>${timeStr}</td>`;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('playerCount').innerText = count;
+        });
+    </script>
+</body>
+</html>

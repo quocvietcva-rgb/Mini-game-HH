@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tham Gia Trắc Nghiệm</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; background-color: #f0f2f5; margin: 0; padding: 20px; display: flex; flex-direction: column; justify-content: center; min-height: 90vh; }
+        #lobby, #game, #result { display: none; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        h2, h3 { color: #333; margin-top: 0; }
+        input { padding: 15px; font-size: 16px; width: 100%; box-sizing: border-box; margin-bottom: 20px; border: 2px solid #ddd; border-radius: 8px; outline: none; }
+        input:focus { border-color: #007bff; }
+        button { padding: 15px 20px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; border: none; border-radius: 8px; background: #007bff; color: white; transition: 0.2s; margin-bottom: 15px; }
+        button:active { transform: scale(0.98); }
+        .option-btn { background: #e9ecef; color: #333; margin-bottom: 12px; text-align: left; padding-left: 20px; }
+        .option-btn:active { background: #0056b3; color: white; }
+        .survived { background-color: #d4edda !important; color: #155724; border: 2px solid #c3e6cb; }
+        .eliminated { background-color: #f8d7da !important; color: #721c24; border: 2px solid #f5c6cb; }
+        #waitMessage { color: #28a745; font-weight: bold; font-size: 18px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div id="lobby">
+        <h2>Nhập Tên Tham Gia</h2>
+        <input type="text" id="playerName" placeholder="Ví dụ: Nguyễn Văn A">
+        <button onclick="join()">Vào Phòng Game</button>
+    </div>
+    <div id="game">
+        <h3 id="questionText">Đang tải câu hỏi...</h3>
+        <div id="options"></div>
+        <p id="waitMessage" style="display:none;">✔️ Đã ghi nhận đáp án! Đang chờ kết quả...</p>
+    </div>
+    <div id="result">
+        <h2 id="resultTitle"></h2>
+        <p id="resultMessage" style="font-size: 16px; line-height: 1.5;"></p>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let isJoined = false;
+        socket.on('gameState', (state) => {
+            if (!isJoined) {
+                document.getElementById('lobby').style.display = 'block';
+                return;
+            }
+            if (state.status === 'playing') {
+                document.getElementById('lobby').style.display = 'none';
+                document.getElementById('result').style.display = 'none';
+                document.getElementById('game').style.display = 'block';
+                document.getElementById('waitMessage').style.display = 'none';
+                const q = state.questions[state.currentQuestionIndex];
+                document.getElementById('questionText').innerText = `Câu ${state.currentQuestionIndex + 1}: ${q.text}`;
+                const optionsDiv = document.getElementById('options');
+                optionsDiv.innerHTML = '';
+                optionsDiv.style.display = 'block';
+                q.options.forEach((opt, index) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'option-btn';
+                    btn.innerText = opt;
+                    btn.onclick = () => submitAnswer(index);
+                    optionsDiv.appendChild(btn);
+                });
+            } else if (state.status === 'lobby') {
+                isJoined = false;
+                document.getElementById('lobby').style.display = 'block';
+                document.getElementById('game').style.display = 'none';
+                document.getElementById('result').style.display = 'none';
+            }
+        });
+        socket.on('joined', () => {
+            isJoined = true;
+            document.getElementById('lobby').innerHTML = '<h2>Đã vào phòng!</h2><p>Hãy chờ Quản trò bắt đầu...</p>';
+        });
+        socket.on('answerAcknowledged', () => {
+            document.getElementById('options').style.display = 'none';
+            document.getElementById('waitMessage').style.display = 'block';
+        });
+        socket.on('roundResult', (data) => {
+            document.getElementById('game').style.display = 'none';
+            const resDiv = document.getElementById('result');
+            resDiv.style.display = 'block';
+            if (data.status === 'survived') {
+                resDiv.className = 'survived';
+                document.getElementById('resultTitle').innerText = 'Tuyệt vời!';
+                document.getElementById('resultMessage').innerText = 'Bạn đã lọt vào vòng tiếp theo. Chuẩn bị ngón tay nhé!';
+            } else {
+                resDiv.className = 'eliminated';
+                document.getElementById('resultTitle').innerText = 'Rất tiếc!';
+                document.getElementById('resultMessage').innerText = 'Bạn đã bị loại. Hãy tiếp tục theo dõi diễn biến trận đấu nhé.';
+            }
+        });
+        function join() { const name = document.getElementById('playerName').value.trim(); if(name) socket.emit('joinGame', name); }
+        function submitAnswer(index) { socket.emit('submitAnswer', index); }
+    </script>
+</body>
+</html>
